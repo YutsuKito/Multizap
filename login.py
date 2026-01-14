@@ -1,6 +1,7 @@
 """
 Módulo de gerenciamento de perfis do WhatsApp
 Responsável por criar, salvar e carregar perfis de usuário
+Atualizado para compatibilidade com PyQt6
 """
 import os
 import json

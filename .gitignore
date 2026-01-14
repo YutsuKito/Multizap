@@ -1,4 +1,5 @@
 # Perfis do WhatsApp (dados sensíveis - sessões, cookies, etc)
+# Atualizado para projeto PyQt6
 profiles/
 profiles_config.json
 
