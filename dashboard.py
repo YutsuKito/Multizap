@@ -3,15 +3,63 @@ Dashboard - Interface gráfica para gerenciamento de perfis
 Permite criar, editar e selecionar quais perfis serão exibidos
 """
 import sys
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QPushButton, QLabel, QLineEdit,
                              QListWidget, QListWidgetItem, QDialog, QColorDialog,
                              QMessageBox, QCheckBox, QGridLayout, QGroupBox,
                              QSpinBox, QDialogButtonBox)
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QColor
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QColor
 from login import ProfileManager
 import subprocess
+
+
+def show_message(parent, title, text, icon_type="info"):
+    """Exibe uma mensagem estilizada que funciona no Windows 10"""
+    msg = QMessageBox(parent)
+    msg.setWindowTitle(title)
+    msg.setText(text)
+    
+    # Forçar o texto a aparecer usando stylesheet
+    msg.setStyleSheet("""
+        QMessageBox {
+            background-color: #2b2b2b;
+        }
+        QMessageBox QLabel {
+            color: white;
+            font-size: 9pt;
+            min-width: 150px;
+            min-height: 20px;
+            qproperty-alignment: AlignCenter;
+            padding-left: 10px;
+        }
+        QMessageBox QLabel#qt_msgbox_label {
+            padding-left: 0px;
+            margin-left: -20px;
+        }
+        QPushButton {
+            background-color: #0d7377;
+            color: white;
+            padding: 5px 14px;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 9pt;
+        }
+        QPushButton:hover {
+            background-color: #14a085;
+        }
+    """)
+    
+    if icon_type == "info":
+        msg.setIcon(QMessageBox.Icon.Information)
+    elif icon_type == "warning":
+        msg.setIcon(QMessageBox.Icon.Warning)
+    elif icon_type == "error":
+        msg.setIcon(QMessageBox.Icon.Critical)
+    
+    msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+    msg.exec()
 
 class ProfileDialog(QDialog):
     """Diálogo para adicionar/editar perfil"""
@@ -83,13 +131,13 @@ class ProfileDialog(QDialog):
     def validate_and_accept(self):
         name = self.name_input.text().strip()
         if not name:
-            QMessageBox.warning(self, "Aviso", "O nome do perfil é obrigatório!")
+            show_message(self, "Aviso", "O nome do perfil é obrigatório!", "warning")
             return
         
         if not self.profile:
             profile_id = self.id_input.text().strip()
             if not profile_id:
-                QMessageBox.warning(self, "Aviso", "O ID do perfil é obrigatório!")
+                show_message(self, "Aviso", "O ID do perfil é obrigatório!", "warning")
                 return
         
         self.accept()
@@ -273,16 +321,16 @@ class DashboardWindow(QMainWindow):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
             if self.profile_manager.add_profile(data['name'], data['profile_id'], data['color']):
-                QMessageBox.information(self, "Sucesso", "Perfil adicionado com sucesso!")
+                show_message(self, "Sucesso", "Perfil adicionado com sucesso!", "info")
                 self.load_profiles_list()
             else:
-                QMessageBox.warning(self, "Erro", "Perfil com este ID já existe!")
+                show_message(self, "Erro", "Perfil com este ID já existe!", "warning")
     
     def edit_profile(self):
         """Edita o perfil selecionado"""
         current_item = self.profiles_list.currentItem()
         if not current_item:
-            QMessageBox.warning(self, "Aviso", "Selecione um perfil para editar!")
+            show_message(self, "Aviso", "Selecione um perfil para editar!", "warning")
             return
         
         profile = current_item.data(Qt.ItemDataRole.UserRole)
@@ -295,14 +343,14 @@ class DashboardWindow(QMainWindow):
                 name=data['name'], 
                 color=data['color']
             ):
-                QMessageBox.information(self, "Sucesso", "Perfil atualizado com sucesso!")
+                show_message(self, "Sucesso", "Perfil atualizado com sucesso!", "info")
                 self.load_profiles_list()
     
     def remove_profile(self):
         """Remove o perfil selecionado"""
         current_item = self.profiles_list.currentItem()
         if not current_item:
-            QMessageBox.warning(self, "Aviso", "Selecione um perfil para remover!")
+            show_message(self, "Aviso", "Selecione um perfil para remover!", "warning")
             return
         
         profile = current_item.data(Qt.ItemDataRole.UserRole)
@@ -315,7 +363,7 @@ class DashboardWindow(QMainWindow):
         
         if reply == QMessageBox.StandardButton.Yes:
             self.profile_manager.remove_profile(profile['profile_id'])
-            QMessageBox.information(self, "Sucesso", "Perfil removido com sucesso!")
+            show_message(self, "Sucesso", "Perfil removido com sucesso!", "info")
             self.load_profiles_list()
     
     def start_multizap(self):
@@ -323,7 +371,7 @@ class DashboardWindow(QMainWindow):
         enabled_profiles = self.profile_manager.get_enabled_profiles()
         
         if not enabled_profiles:
-            QMessageBox.warning(self, "Aviso", "Selecione pelo menos um perfil!")
+            show_message(self, "Aviso", "Selecione pelo menos um perfil!", "warning")
             return
         
         # Fechar dashboard e iniciar main.py

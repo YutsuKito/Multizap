@@ -5,11 +5,12 @@ Exibe múltiplas instâncias do WhatsApp Web com perfis separados
 """
 import sys
 import os
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QGridLayout, 
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QGridLayout, 
                              QVBoxLayout, QWidget, QMessageBox,
                              QPushButton, QLabel, QHBoxLayout)
-from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineProfile, QWebEnginePage, QWebEngineSettings
-from PyQt5.QtCore import QUrl, Qt
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEnginePage, QWebEngineSettings
+from PyQt6.QtCore import QUrl, Qt
 from login import ProfileManager
 
 # Cache de perfis para reutilização e economia de RAM
@@ -18,6 +19,9 @@ _profile_cache = {}
 class WhatsAppInstance(QWidget):
     def __init__(self, profile_name, label_title, color_code):
         super().__init__()
+        
+        # Armazena o título para usar na mensagem de permissão
+        self.instance_title = label_title
         
         # Layout da instância individual
         self.layout = QVBoxLayout()
@@ -77,12 +81,16 @@ class WhatsAppInstance(QWidget):
         
         self.page = QWebEnginePage(self.profile, self.browser)
         
+        # Conectar o pedido de permissão (microfone/câmera)
+        self.page.featurePermissionRequested.connect(self.grant_permission)
+        
         # Otimizações de performance
         settings = self.page.settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.PluginsEnabled, False)
         settings.setAttribute(QWebEngineSettings.WebAttribute.PdfViewerEnabled, False)
         settings.setAttribute(QWebEngineSettings.WebAttribute.AutoLoadIconsForPage, False)
-        settings.setAttribute(QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture, True)
+        # PlaybackRequiresUserGesture False para notificações de áudio funcionarem
+        settings.setAttribute(QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture, False)
         settings.setAttribute(QWebEngineSettings.WebAttribute.WebGLEnabled, False)
         settings.setAttribute(QWebEngineSettings.WebAttribute.Accelerated2dCanvasEnabled, False)
         
@@ -92,6 +100,50 @@ class WhatsAppInstance(QWidget):
         self.browser.loadFinished.connect(self.on_load_finished)
         
         self.browser.setUrl(QUrl("https://web.whatsapp.com"))
+    
+    def grant_permission(self, url, feature):
+        """
+        Intercepta pedidos de uso de Hardware (Microfone/Câmera) e concede automaticamente
+        para o domínio do WhatsApp, ou pede autorização ao usuário para outros domínios.
+        """
+        # Permissões de mídia (microfone/câmera)
+        media_features = (
+            QWebEnginePage.Feature.MediaAudioCapture, 
+            QWebEnginePage.Feature.MediaVideoCapture,
+            QWebEnginePage.Feature.MediaAudioVideoCapture
+        )
+        
+        # Auto-conceder para WhatsApp
+        if "whatsapp.com" in url.host():
+            if feature in media_features:
+                print(f"[DEBUG] Auto-concedendo permissão de mídia para {url.host()}")
+                self.page.setFeaturePermission(url, feature, QWebEnginePage.PermissionPolicy.PermissionGrantedByUser)
+                return
+        
+        # Para outros domínios ou funcionalidades, perguntar ao usuário
+        if feature in media_features:
+            feature_name = "o Microfone"
+            if feature == QWebEnginePage.Feature.MediaVideoCapture:
+                feature_name = "a Câmera"
+            elif feature == QWebEnginePage.Feature.MediaAudioVideoCapture:
+                feature_name = "a Câmera e o Microfone"
+
+            # Pop-up de confirmação
+            resposta = QMessageBox.question(
+                self,
+                "Solicitação de Acesso",
+                f"A instância '{self.instance_title}' deseja acessar {feature_name}.\n\nVocê autoriza?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+
+            if resposta == QMessageBox.StandardButton.Yes:
+                self.page.setFeaturePermission(url, feature, QWebEnginePage.PermissionPolicy.PermissionGrantedByUser)
+            else:
+                self.page.setFeaturePermission(url, feature, QWebEnginePage.PermissionPolicy.PermissionDeniedByUser)
+        else:
+            # Para outras permissões não tratadas, negar por padrão
+            self.page.setFeaturePermission(url, feature, QWebEnginePage.PermissionPolicy.PermissionDeniedByUser)
 
     def reload_page(self):
         self.browser.reload()
@@ -180,30 +232,31 @@ def main():
     
     # Flags do Chromium para reduzir consumo de RAM e CPU
     # Essencial para computadores fracos
+    # Removido --mute-audio para o microfone funcionar
+    # Removido --disable-background-networking para não atrapalhar chamadas WebRTC
+    # Removido --disable-gpu para não afetar codificação de áudio
     os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
-        "--disable-gpu "                          # Desabilita GPU (reduz VRAM)
         "--disable-software-rasterizer "          # Desabilita rasterização por software
         "--disable-dev-shm-usage "                # Evita problemas com /dev/shm
         "--no-sandbox "                           # Remove sandbox (reduz overhead)
         "--disable-setuid-sandbox "               # Remove setuid sandbox
-        "--disable-features=VizDisplayCompositor " # Desabilita compositor
         "--js-flags=--expose-gc "                 # Permite coleta de lixo JS
         "--enable-low-end-device-mode "           # Modo para dispositivos fracos
-        "--disable-background-networking "        # Sem rede em segundo plano
         "--disable-sync "                         # Sem sincronização
         "--metrics-recording-only "               # Apenas métricas essenciais
-        "--mute-audio "                           # Áudio desabilitado
         "--disable-breakpad "                     # Desabilita crash reporter
         "--disable-extensions "                   # Sem extensões
         "--disable-print-preview "                # Sem preview de impressão
-        "--disable-component-update"              # Sem atualizações de componentes
+        "--disable-component-update "             # Sem atualizações de componentes
+        "--autoplay-policy=no-user-gesture-required " # Permite autoplay de áudio
+        "--use-fake-ui-for-media-stream"          # Permite acesso a mídia sem UI fake
     )
 
+    # Atributos de performance - DEVE ser definido ANTES de criar QApplication
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, False)
+    
     # Criar aplicação
     app = QApplication(sys.argv)
-    
-    # Atributos de performance
-    app.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, False)
     
     # Criar e exibir janela principal
     try:
