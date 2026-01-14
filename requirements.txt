@@ -1,0 +1,9 @@
+# Multi-Zap - Dependências
+# Python 3.8+
+
+# Interface Gráfica
+PyQt6>=6.4.0
+PyQt6-WebEngine>=6.4.0
+
+# Monitoramento de Sistema (para auto-otimização)
+psutil>=5.9.0
