@@ -3,6 +3,7 @@ Dashboard - Interface gráfica para gerenciamento de perfis
 Permite criar, editar e selecionar quais perfis serão exibidos
 """
 import sys
+import os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QPushButton, QLabel, QLineEdit,
                              QListWidget, QListWidgetItem, QDialog, QColorDialog,
@@ -12,7 +13,6 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 from login import ProfileManager
 import subprocess
-
 
 def show_message(parent, title, text, icon_type="info"):
     """Exibe uma mensagem estilizada que funciona no Windows 10"""
@@ -374,20 +374,26 @@ class DashboardWindow(QMainWindow):
             show_message(self, "Aviso", "Selecione pelo menos um perfil!", "warning")
             return
         
-        # Fechar dashboard e iniciar main.py
+        # Fechar dashboard e iniciar main
         try:
-            subprocess.Popen([sys.executable, "main.py"])
+            if getattr(sys, 'frozen', False):
+                # SE ESTIVER RODANDO COMO EXE (PyInstaller)
+                application_path = os.path.dirname(sys.executable)
+                main_exe_path = os.path.join(application_path, "main.exe")
+                subprocess.Popen([main_exe_path])
+            else:
+                # SE ESTIVER RODANDO NO PYTHON (VS Code)
+                subprocess.Popen([sys.executable, "main.py"])
+                
             self.close()
         except Exception as e:
             QMessageBox.critical(self, "Erro", f"Erro ao iniciar Multi-Zap: {e}")
 
-
-def main():
+# ==========================================
+# BLOCO PRINCIPAL (FORA DA CLASSE)
+# ==========================================
+if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = DashboardWindow()
     window.show()
     sys.exit(app.exec())
-
-
-if __name__ == '__main__':
-    main()

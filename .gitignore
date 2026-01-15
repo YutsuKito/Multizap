@@ -41,6 +41,7 @@ desktop.ini
 .settings/
 
 # Arquivos de Distribuição/Build
+*.spec
 build/
 develop-eggs/
 dist/
